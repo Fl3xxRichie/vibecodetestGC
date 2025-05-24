@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Music Visualizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .visualizer-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(ellipse at center, #1a0033 0%, #000 100%);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20, 20, 40, 0.9);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .controls:hover {
+            transform: translateX(-50%) translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7);
+        }
+
+        .control-btn {
+            background: linear-gradient(45deg, #ff006e, #8338ec);
+            border: none;
+            color: white;
+            padding: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(131, 56, 236, 0.4);
+        }
+
+        .control-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(131, 56, 236, 0.6);
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(45deg, #ff006e, #8338ec);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(131, 56, 236, 0.5);
+        }
+
+        .time-display {
+            color: #ccc;
+            font-size: 14px;
+            min-width: 100px;
+            text-align: center;
+        }
+
+        .mode-selector {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            max-width: 300px;
+        }
+
+        .mode-btn {
+            background: rgba(20, 20, 40, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .mode-btn:hover {
+            background: rgba(131, 56, 236, 0.5);
+            border-color: #8338ec;
+            transform: translateY(-2px);
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(45deg, #ff006e, #8338ec);
+            border-color: #8338ec;
+        }
+
+        .color-presets {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 10px;
+            flex-direction: column;
+        }
+
+        .color-preset {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .color-preset:hover {
+            transform: scale(1.1);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .color-preset.active {
+            border-color: #fff;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+
+        .upload-area {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            padding: 40px;
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            background: rgba(20, 20, 40, 0.8);
+            backdrop-filter: blur(20px);
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: #8338ec;
+            background: rgba(20, 20, 40, 0.9);
+        }
+
+        .upload-area h2 {
+            margin-bottom: 20px;
+            background: linear-gradient(45deg, #ff006e, #8338ec);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            background: linear-gradient(45deg, #ff006e, #8338ec);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 20px rgba(131, 56, 236, 0.4);
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(131, 56, 236, 0.6);
+        }
+
+        .fullscreen-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(20, 20, 40, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .fullscreen-btn:hover {
+            background: rgba(131, 56, 236, 0.5);
+            transform: scale(1.1);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                padding: 15px;
+                gap: 15px;
+                flex-wrap: wrap;
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                transform: none;
+            }
+
+            .mode-selector {
+                top: 10px;
+                right: 10px;
+                max-width: 200px;
+            }
+
+            .color-presets {
+                top: 10px;
+                left: 10px;
+                flex-direction: row;
+                flex-wrap: wrap;
+                max-width: 200px;
+            }
+
+            .color-preset {
+                width: 30px;
+                height: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="visualizer-container">
+        <canvas id="visualizer"></canvas>
+        
+        <div class="upload-area" id="uploadArea">
+            <h2>🎵 Cosmic Music Visualizer</h2>
+            <p>Upload your audio file to start the visual journey</p>
+            <br>
+            <button class="upload-btn" onclick="document.getElementById('audioFile').click()">
+                Choose Audio File
+            </button>
+            <input type="file" id="audioFile" class="file-input" accept="audio/*">
+        </div>
+
+        <div class="controls hidden" id="controls">
+            <button class="control-btn" id="playPauseBtn">⏸️</button>
+            <div class="volume-control">
+                <span>🔊</span>
+                <input type="range" class="slider" id="volumeSlider" min="0" max="100" value="70">
+            </div>
+            <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
+            <input type="range" class="slider" id="progressSlider" min="0" max="100" value="0" style="width: 200px;">
+        </div>
+
+        <div class="mode-selector hidden" id="modeSelector">
+            <button class="mode-btn active" data-mode="particles">Particles</button>
+            <button class="mode-btn" data-mode="spectrum">Spectrum</button>
+            <button class="mode-btn" data-mode="waveform">Waveform</button>
+            <button class="mode-btn" data-mode="geometric">3D Shapes</button>
+        </div>
+
+        <div class="color-presets hidden" id="colorPresets">
+            <div class="color-preset active" data-colors="neon" style="background: linear-gradient(45deg, #ff006e, #8338ec);"></div>
+            <div class="color-preset" data-colors="ocean" style="background: linear-gradient(45deg, #00d4ff, #006eff);"></div>
+            <div class="color-preset" data-colors="fire" style="background: linear-gradient(45deg, #ff4500, #ff8c00);"></div>
+            <div class="color-preset" data-colors="nature" style="background: linear-gradient(45deg, #00ff7f, #32cd32);"></div>
+            <div class="color-preset" data-colors="sunset" style="background: linear-gradient(45deg, #ff1493, #ffa500);"></div>
+        </div>
+
+        <button class="fullscreen-btn hidden" id="fullscreenBtn">⛶</button>
+    </div>
+
+    <script>
+        class MusicVisualizer {
+            constructor() {
+                this.canvas = document.getElementById('visualizer');
+                this.ctx = this.canvas.getContext('2d');
+                this.audio = new Audio();
+                this.audioContext = null;
+                this.analyser = null;
+                this.dataArray = null;
+                this.bufferLength = 0;
+                this.isPlaying = false;
+                this.currentMode = 'particles';
+                this.colorScheme = 'neon';
+                this.particles = [];
+                this.beatDetected = false;
+                this.beatThreshold = 200;
+                this.lastBeatTime = 0;
+                
+                this.colorSchemes = {
+                    neon: { primary: '#ff006e', secondary: '#8338ec', accent: '#00f5ff' },
+                    ocean: { primary: '#00d4ff', secondary: '#006eff', accent: '#0080ff' },
+                    fire: { primary: '#ff4500', secondary: '#ff8c00', accent: '#ffff00' },
+                    nature: { primary: '#00ff7f', secondary: '#32cd32', accent: '#90ee90' },
+                    sunset: { primary: '#ff1493', secondary: '#ffa500', accent: '#ff69b4' }
+                };
+
+                this.initCanvas();
+                this.initEventListeners();
+                this.initParticles();
+                this.animate();
+            }
+
+            initCanvas() {
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+            }
+
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            initEventListeners() {
+                // File upload
+                document.getElementById('audioFile').addEventListener('change', (e) => {
+                    this.loadAudio(e.target.files[0]);
+                });
+
+                // Play/Pause
+                document.getElementById('playPauseBtn').addEventListener('click', () => {
+                    this.togglePlayPause();
+                });
+
+                // Volume
+                document.getElementById('volumeSlider').addEventListener('input', (e) => {
+                    this.audio.volume = e.target.value / 100;
+                });
+
+                // Progress
+                document.getElementById('progressSlider').addEventListener('input', (e) => {
+                    const time = (e.target.value / 100) * this.audio.duration;
+                    this.audio.currentTime = time;
+                });
+
+                // Mode selection
+                document.querySelectorAll('.mode-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        document.querySelector('.mode-btn.active').classList.remove('active');
+                        e.target.classList.add('active');
+                        this.currentMode = e.target.dataset.mode;
+                    });
+                });
+
+                // Color presets
+                document.querySelectorAll('.color-preset').forEach(preset => {
+                    preset.addEventListener('click', (e) => {
+                        document.querySelector('.color-preset.active').classList.remove('active');
+                        e.target.classList.add('active');
+                        this.colorScheme = e.target.dataset.colors;
+                    });
+                });
+
+                // Fullscreen
+                document.getElementById('fullscreenBtn').addEventListener('click', () => {
+                    this.toggleFullscreen();
+                });
+
+                // Audio events
+                this.audio.addEventListener('timeupdate', () => this.updateProgress());
+                this.audio.addEventListener('ended', () => this.audioEnded());
+            }
+
+            async loadAudio(file) {
+                if (!file) return;
+
+                const url = URL.createObjectURL(file);
+                this.audio.src = url;
+
+                try {
+                    if (!this.audioContext) {
+                        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        this.analyser = this.audioContext.createAnalyser();
+                        this.analyser.fftSize = 256;
+                        this.bufferLength = this.analyser.frequencyBinCount;
+                        this.dataArray = new Uint8Array(this.bufferLength);
+
+                        const source = this.audioContext.createMediaElementSource(this.audio);
+                        source.connect(this.analyser);
+                        this.analyser.connect(this.audioContext.destination);
+                    }
+
+                    await this.audio.load();
+                    this.showControls();
+                    this.audio.play();
+                    this.isPlaying = true;
+                    document.getElementById('playPauseBtn').textContent = '⏸️';
+
+                } catch (error) {
+                    console.error('Error loading audio:', error);
+                    alert('Error loading audio file. Please try a different file.');
+                }
+            }
+
+            showControls() {
+                document.getElementById('uploadArea').classList.add('hidden');
+                document.getElementById('controls').classList.remove('hidden');
+                document.getElementById('modeSelector').classList.remove('hidden');
+                document.getElementById('colorPresets').classList.remove('hidden');
+                document.getElementById('fullscreenBtn').classList.remove('hidden');
+            }
+
+            togglePlayPause() {
+                if (this.isPlaying) {
+                    this.audio.pause();
+                    document.getElementById('playPauseBtn').textContent = '▶️';
+                } else {
+                    this.audio.play();
+                    document.getElementById('playPauseBtn').textContent = '⏸️';
+                }
+                this.isPlaying = !this.isPlaying;
+            }
+
+            updateProgress() {
+                const progress = (this.audio.currentTime / this.audio.duration) * 100;
+                document.getElementById('progressSlider').value = progress;
+
+                const current = this.formatTime(this.audio.currentTime);
+                const total = this.formatTime(this.audio.duration);
+                document.getElementById('timeDisplay').textContent = `${current} / ${total}`;
+            }
+
+            formatTime(seconds) {
+                if (isNaN(seconds)) return '0:00';
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            }
+
+            audioEnded() {
+                this.isPlaying = false;
+                document.getElementById('playPauseBtn').textContent = '▶️';
+            }
+
+            toggleFullscreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen();
+                } else {
+                    document.exitFullscreen();
+                }
+            }
+
+            initParticles() {
+                for (let i = 0; i < 100; i++) {
+                    this.particles.push({
+                        x: Math.random() * this.canvas.width,
+                        y: Math.random() * this.canvas.height,
+                        vx: (Math.random() - 0.5) * 2,
+                        vy: (Math.random() - 0.5) * 2,
+                        size: Math.random() * 3 + 1,
+                        life: 1,
+                        maxLife: Math.random() * 100 + 50
+                    });
+                }
+            }
+
+            detectBeat() {
+                if (!this.dataArray) return;
+
+                const bass = this.dataArray.slice(0, 10);
+                const bassAvg = bass.reduce((a, b) => a + b) / bass.length;
+                
+                const now = Date.now();
+                if (bassAvg > this.beatThreshold && now - this.lastBeatTime > 200) {
+                    this.beatDetected = true;
+                    this.lastBeatTime = now;
+                    setTimeout(() => { this.beatDetected = false; }, 100);
+                }
+            }
+
+            drawParticles() {
+                const colors = this.colorSchemes[this.colorScheme];
+                
+                this.particles.forEach((particle, index) => {
+                    if (!this.dataArray) return;
+
+                    const freqIndex = Math.floor(index * this.bufferLength / this.particles.length);
+                    const amplitude = this.dataArray[freqIndex] / 255;
+                    
+                    particle.x += particle.vx * (1 + amplitude * 2);
+                    particle.y += particle.vy * (1 + amplitude * 2);
+                    particle.life -= 1;
+
+                    if (particle.life <= 0 || particle.x < 0 || particle.x > this.canvas.width || 
+                        particle.y < 0 || particle.y > this.canvas.height) {
+                        particle.x = Math.random() * this.canvas.width;
+                        particle.y = Math.random() * this.canvas.height;
+                        particle.vx = (Math.random() - 0.5) * 2;
+                        particle.vy = (Math.random() - 0.5) * 2;
+                        particle.life = particle.maxLife;
+                    }
+
+                    const alpha = particle.life / particle.maxLife;
+                    const size = particle.size * (1 + amplitude * 3);
+                    
+                    const gradient = this.ctx.createRadialGradient(
+                        particle.x, particle.y, 0,
+                        particle.x, particle.y, size
+                    );
+                    gradient.addColorStop(0, colors.primary + Math.floor(alpha * 255).toString(16).padStart(2, '0'));
+                    gradient.addColorStop(0.5, colors.secondary + Math.floor(alpha * 128).toString(16).padStart(2, '0'));
+                    gradient.addColorStop(1, colors.accent + '00');
+
+                    this.ctx.fillStyle = gradient;
+                    this.ctx.beginPath();
+                    this.ctx.arc(particle.x, particle.y, size, 0, Math.PI * 2);
+                    this.ctx.fill();
+
+                    if (this.beatDetected) {
+                        this.ctx.shadowBlur = 20;
+                        this.ctx.shadowColor = colors.accent;
+                        this.ctx.fill();
+                        this.ctx.shadowBlur = 0;
+                    }
+                });
+            }
+
+            drawSpectrum() {
+                if (!this.dataArray) return;
+
+                const colors = this.colorSchemes[this.colorScheme];
+                const centerX = this.canvas.width / 2;
+                const centerY = this.canvas.height / 2;
+                const radius = Math.min(centerX, centerY) * 0.6;
+
+                for (let i = 0; i < this.bufferLength; i++) {
+                    const amplitude = this.dataArray[i] / 255;
+                    const angle = (i / this.bufferLength) * Math.PI * 2;
+                    
+                    const x1 = centerX + Math.cos(angle) * radius;
+                    const y1 = centerY + Math.sin(angle) * radius;
+                    const x2 = centerX + Math.cos(angle) * (radius + amplitude * 100);
+                    const y2 = centerY + Math.sin(angle) * (radius + amplitude * 100);
+
+                    const gradient = this.ctx.createLinearGradient(x1, y1, x2, y2);
+                    gradient.addColorStop(0, colors.primary);
+                    gradient.addColorStop(0.5, colors.secondary);
+                    gradient.addColorStop(1, colors.accent);
+
+                    this.ctx.strokeStyle = gradient;
+                    this.ctx.lineWidth = 3 + amplitude * 5;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x1, y1);
+                    this.ctx.lineTo(x2, y2);
+                    this.ctx.stroke();
+
+                    if (this.beatDetected) {
+                        this.ctx.shadowBlur = 15;
+                        this.ctx.shadowColor = colors.accent;
+                        this.ctx.stroke();
+                        this.ctx.shadowBlur = 0;
+                    }
+                }
+            }
+
+            drawWaveform() {
+                if (!this.dataArray) return;
+
+                const colors = this.colorSchemes[this.colorScheme];
+                const sliceWidth = this.canvas.width / this.bufferLength;
+                
+                // Create gradient
+                const gradient = this.ctx.createLinearGradient(0, 0, this.canvas.width, 0);
+                gradient.addColorStop(0, colors.primary);
+                gradient.addColorStop(0.5, colors.secondary);
+                gradient.addColorStop(1, colors.accent);
+
+                this.ctx.strokeStyle = gradient;
+                this.ctx.lineWidth = 4;
+                this.ctx.beginPath();
+
+                let x = 0;
+                for (let i = 0; i < this.bufferLength; i++) {
+                    const amplitude = this.dataArray[i] / 255;
+                    const y = (this.canvas.height / 2) + (amplitude - 0.5) * this.canvas.height * 0.8;
+
+                    if (i === 0) {
+                        this.ctx.moveTo(x, y);
+                    } else {
+                        this.ctx.lineTo(x, y);
+                    }
+
+                    x += sliceWidth;
+                }
+
+                this.ctx.stroke();
+
+                if (this.beatDetected) {
+                    this.ctx.shadowBlur = 20;
+                    this.ctx.shadowColor = colors.accent;
+                    this.ctx.stroke();
+                    this.ctx.shadowBlur = 0;
+                }
+
+                // Add fill under waveform
+                this.ctx.globalAlpha = 0.3;
+                this.ctx.fillStyle = gradient;
+                this.ctx.lineTo(this.canvas.width, this.canvas.height / 2);
+                this.ctx.lineTo(0, this.canvas.height / 2);
+                this.ctx.fill();
+                this.ctx.globalAlpha = 1;
+            }
+
+            drawGeometric() {
+                if (!this.dataArray) return;
+
+                const colors = this.colorSchemes[this.colorScheme];
+                const centerX = this.canvas.width / 2;
+                const centerY = this.canvas.height / 2;
+                const time = Date.now() / 1000;
+
+                // Calculate average amplitude
+                const avgAmplitude = this.dataArray.reduce((a, b) => a + b) / this.bufferLength / 255;
+
+                // Draw rotating hexagon
+                const hexRadius = 80 + avgAmplitude * 100;
+                this.ctx.save();
+                this.ctx.translate(centerX, centerY);
+                this.ctx.rotate(time * 0.5);
+
+                const gradient = this.ctx.createRadialGradient(0, 0, 0, 0, 0, hexRadius);
+                gradient.addColorStop(0, colors.primary + '80');
+                gradient.addColorStop(0.7, colors.secondary + '40');
+                gradient.addColorStop(1, colors.accent + '00');
+
+                this.ctx.strokeStyle = colors.primary;
+                this.ctx.fillStyle = gradient;
+                this.ctx.lineWidth = 3 + avgAmplitude * 5;
+
+                this.ctx.beginPath();
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i / 6) * Math.PI * 2;
+                    const x = Math.cos(angle) * hexRadius;
+                    const y = Math.sin(angle) * hexRadius;
+                    if (i === 0) this.ctx.moveTo(x, y);
+                    else this.ctx.lineTo(x, y);
+                }
+                this.ctx.closePath();
+                this.ctx.fill();
+                this.ctx.stroke();
+
+                if (this.beatDetected) {
+                    this.ctx.shadowBlur = 30;
+                    this.ctx.shadowColor = colors.accent;
+                    this.ctx.stroke();
+                    this.ctx.shadowBlur = 0;
+                }
+
+                this.ctx.restore();
+
+                // Draw frequency bars in circle
+                for (let i = 0; i < this.bufferLength; i += 2) {
+                    const amplitude = this.dataArray[i] / 255;
+                    const angle = (i / this.bufferLength) * Math.PI * 2;
+                    const distance = 150;
+                    
+                    const x = centerX + Math.cos(angle) * distance;
+                    const y = centerY + Math.sin(angle) * distance;
+                    const size = 5 + amplitude * 15;
+
+                    const grad = this.ctx.createRadialGradient(x, y, 0, x, y, size);
+                    grad.addColorStop(0, colors.secondary);
+                    grad.addColorStop(1, colors.accent + '00');
+
+                    this.ctx.fillStyle = grad;
+                    this.ctx.beginPath();
+                    this.ctx.arc(x, y, size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                }
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+
+                // Clear canvas with fade effect
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                if (this.analyser && this.isPlaying) {
+                    this.analyser.getByteFrequencyData(this.dataArray);
+                    this.detectBeat();
+
+                    switch (this.currentMode) {
+                        case 'particles':
+                            this.drawParticles();
+                            break;
+                        case 'spectrum':
+                            this.drawSpectrum();
+                            break;
+                        case 'waveform':
+                            this.drawWaveform();
+                            break;
+                        case 'geometric':
+                            this.drawGeometric();
+                            break;
+                    }
+                }
+            }
+        }
+
+        // Initialize the visualizer
+        const visualizer = new MusicVisualizer();
+    </script>
+</body>
+</html>

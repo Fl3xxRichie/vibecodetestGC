@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Music Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f0c29; /* Dark cosmic blue */
+            color: #e0e0e0;
+            overflow: hidden; /* Prevent scrollbars from main page */
+        }
+        #visualizerCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background-color: transparent; /* Canvas itself is transparent */
+        }
+        .control-panel {
+            background-color: rgba(10, 8, 20, 0.8); /* Slightly transparent dark panel */
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(100, 100, 200, 0.3);
+        }
+        .btn-primary {
+            background-color: #6d28d9; /* Neon purple */
+            color: white;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 10px #6d28d9, 0 0 20px #6d28d9aa, 0 0 30px #6d28d955;
+        }
+        .btn-primary:hover {
+            background-color: #8b5cf6;
+            transform: translateY(-2px);
+            box-shadow: 0 0 15px #8b5cf6, 0 0 30px #8b5cf6aa, 0 0 45px #8b5cf655;
+        }
+        .btn-secondary {
+            background-color: #1e1b4b; /* Dark indigo */
+            color: #a78bfa; /* Light purple */
+            border: 1px solid #a78bfa;
+            transition: all 0.3s ease;
+        }
+        .btn-secondary:hover, .btn-secondary.active {
+            background-color: #312e81;
+            color: white;
+            border-color: #c4b5fd;
+            box-shadow: 0 0 8px #a78bfa;
+        }
+        .btn-secondary.disabled {
+            background-color: #374151; /* Gray-600 */
+            color: #9ca3af; /* Gray-400 */
+            border-color: #4b5563; /* Gray-500 */
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #8b5cf6; /* Neon purple */
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 0 5px #8b5cf6;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #8b5cf6;
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+            box-shadow: 0 0 5px #8b5cf6;
+        }
+        .loader {
+            border: 4px solid #f3f3f330; /* Light grey */
+            border-top: 4px solid #6d28d9; /* Neon Purple */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10000;
+            display: none; /* Hidden by default */
+        }
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        /* Custom scrollbar for better theme integration */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e1b4b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #6d28d9;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #8b5cf6;
+        }
+        #messageBox {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ef4444; /* Red for error */
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            z-index: 10001;
+            display: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        #messageBox.success {
+            background-color: #22c55e; /* Green for success */
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <div id="loader" class="loader"></div>
+    <div id="messageBox"></div>
+
+    <div id="visualizerContainer" class="flex-grow relative">
+        <canvas id="visualizerCanvas"></canvas>
+    </div>
+
+    <div class="control-panel p-3 md:p-4 shadow-lg w-full">
+        <div class="max-w-screen-xl mx-auto">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mb-3">
+                <div class="flex items-center gap-3">
+                    <input type="file" id="audioFile" accept="audio/mp3, audio/wav" class="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 transition-colors">
+                    <button id="playPauseButton" class="btn-primary p-2 rounded-lg w-10 h-10 flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" /></svg>
+                    </button>
+                </div>
+                <audio id="audioPlayer" controls class="hidden"></audio> <div class="flex items-center gap-3 w-full sm:w-auto">
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-violet-400">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
+                    </svg>
+                    <input type="range" id="volumeControl" min="0" max="1" step="0.01" value="0.5" class="w-24 md:w-32 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-violet-500">
+                </div>
+                <input type="range" id="seekBar" min="0" max="100" value="0" class="w-full sm:w-1/3 md:w-1/4 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-violet-500">
+                <button id="fullscreenButton" class="btn-secondary p-2 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m4.5 11.25h-4.5m4.5 0v-4.5m0 .75-5.25-5.25" /></svg>
+                </button>
+            </div>
+
+            <div class="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-6">
+                <div class="flex gap-2 flex-wrap justify-center">
+                    <span class="text-sm font-medium mr-2 self-center">Modes:</span>
+                    <button data-mode="waveform" class="viz-mode-btn btn-secondary text-xs px-3 py-1 rounded-md active">Waveform</button>
+                    <button data-mode="spectrum" class="viz-mode-btn btn-secondary text-xs px-3 py-1 rounded-md">Spectrum</button>
+                    <button data-mode="particles" class="viz-mode-btn btn-secondary text-xs px-3 py-1 rounded-md">Particles</button>
+                    <button id="btn3dShapes" data-mode="3dshapes" class="viz-mode-btn btn-secondary text-xs px-3 py-1 rounded-md">3D Shapes</button>
+                </div>
+                <div class="flex gap-2 flex-wrap justify-center items-center">
+                    <span class="text-sm font-medium mr-2 self-center">Colors:</span>
+                    <button data-color="neonGlow" class="color-scheme-btn w-6 h-6 rounded-full border-2 border-transparent focus:outline-none focus:border-white" style="background: linear-gradient(45deg, #00ffff, #ff00ff);" title="Neon Glow"></button>
+                    <button data-color="cosmicFire" class="color-scheme-btn w-6 h-6 rounded-full border-2 border-transparent focus:outline-none focus:border-white" style="background: linear-gradient(45deg, #ff8c00, #ff0000);" title="Cosmic Fire"></button>
+                    <button data-color="auroraBorealis" class="color-scheme-btn w-6 h-6 rounded-full border-2 border-transparent focus:outline-none focus:border-white" style="background: linear-gradient(45deg, #00ff7f, #32cd32);" title="Aurora Borealis"></button>
+                    <button data-color="starDust" class="color-scheme-btn w-6 h-6 rounded-full border-2 border-transparent focus:outline-none focus:border-white" style="background: linear-gradient(45deg, #ffffff, #e0e0e0, #c0c0c0);" title="Star Dust"></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const audioPlayer = document.getElementById('audioPlayer');
+        const audioFile = document.getElementById('audioFile');
+        const playPauseButton = document.getElementById('playPauseButton');
+        const volumeControl = document.getElementById('volumeControl');
+        const seekBar = document.getElementById('seekBar');
+        const fullscreenButton = document.getElementById('fullscreenButton');
+        const visualizerCanvas = document.getElementById('visualizerCanvas');
+        const visualizerContainer = document.getElementById('visualizerContainer');
+        const loader = document.getElementById('loader');
+        const messageBox = document.getElementById('messageBox');
+        const btn3dShapes = document.getElementById('btn3dShapes');
+
+        const canvasCtx = visualizerCanvas.getContext('2d');
+        let audioCtx, analyser, sourceNode, bufferLength, dataArray, frequencyArray;
+        let threeScene, threeCamera, threeRenderer, threeCube, threeSphere, threeParticles;
+        let isWebGLAvailable = true; // Assume available until checked
+
+        let currentVisMode = 'waveform';
+        let currentColorScheme = {
+            primary: '#00ffff', // Cyan
+            secondary: '#ff00ff', // Magenta
+            background: '#0f0c29', // Will be set by canvas clear
+            particle: '#ffffff'
+        };
+
+        const colorSchemes = {
+            neonGlow: { primary: '#00ffff', secondary: '#ff00ff', particle: '#ffffff' },
+            cosmicFire: { primary: '#ff8c00', secondary: '#ff0000', particle: '#ffcc00' },
+            auroraBorealis: { primary: '#00ff7f', secondary: '#32cd32', particle: '#98fb98' },
+            starDust: { primary: '#dddddd', secondary: '#aaaaaa', particle: '#ffffff' }
+        };
+        // Set default active color scheme button
+        document.querySelector('.color-scheme-btn[data-color="neonGlow"]').classList.add('border-white', 'ring-2', 'ring-white');
+
+
+        let animationFrameId;
+        let particles = [];
+        const PARTICLE_COUNT = 200;
+
+        // --- Three.js WebGL availability check utility ---
+        // This is a simplified version of WEBGL from Three.js examples
+        const WEBGL = {
+            isWebGLAvailable: function () {
+                try {
+                    const canvas = document.createElement( 'canvas' );
+                    return !! ( window.WebGLRenderingContext && ( canvas.getContext( 'webgl' ) || canvas.getContext( 'experimental-webgl' ) ) );
+                } catch ( e ) {
+                    return false;
+                }
+            },
+            getWebGLErrorMessage: function () {
+                const message = 'WebGL is not available or not enabled in your browser.';
+                const element = document.createElement( 'div' );
+                element.id = 'webgl-error-message';
+                element.innerHTML = `<p>${message}</p><p>Please ensure your browser supports WebGL and it's enabled. You might also need to update your graphics drivers.</p>`;
+                element.style.fontFamily = 'monospace';
+                element.style.fontSize = '13px';
+                element.style.fontWeight = 'normal';
+                element.style.textAlign = 'center';
+                element.style.background = '#fff';
+                element.style.color = '#000';
+                element.style.padding = '1.5em';
+                element.style.width = '400px';
+                element.style.margin = '5em auto 0';
+                return element;
+            }
+        };
+
+
+        // --- Initialization ---
+        function initAudio() {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 2048; 
+                bufferLength = analyser.frequencyBinCount;
+                dataArray = new Uint8Array(bufferLength); 
+                frequencyArray = new Uint8Array(bufferLength);
+            } catch (e) {
+                showError("Web Audio API is not supported in this browser.");
+                console.error("Error initializing AudioContext:", e);
+            }
+        }
+
+        function initThreeJS() {
+            if (!visualizerCanvas) {
+                console.error("Visualizer canvas not found for Three.js initialization.");
+                return false;
+            }
+
+            if (!WEBGL.isWebGLAvailable()) {
+                showError("WebGL is not available. 3D mode disabled.");
+                console.error("WebGL not available.");
+                isWebGLAvailable = false;
+                btn3dShapes.classList.add('disabled');
+                btn3dShapes.disabled = true; 
+                // If current mode is 3D, switch to a fallback
+                if (currentVisMode === '3dshapes') {
+                    document.querySelector('.viz-mode-btn[data-mode="waveform"]').click();
+                }
+                return false; // Indicate failure
+            }
+            isWebGLAvailable = true; // WebGL is available
+
+            try {
+                threeScene = new THREE.Scene();
+                threeCamera = new THREE.PerspectiveCamera(75, visualizerCanvas.clientWidth / visualizerCanvas.clientHeight, 0.1, 1000);
+                // Attempt to create renderer
+                threeRenderer = new THREE.WebGLRenderer({ canvas: visualizerCanvas, alpha: true, antialias: true });
+                threeRenderer.setSize(visualizerCanvas.clientWidth, visualizerCanvas.clientHeight);
+                threeRenderer.setClearColor(0x000000, 0); 
+
+                // Basic Cube
+                const geometryCube = new THREE.BoxGeometry(1, 1, 1);
+                const materialCube = new THREE.MeshPhongMaterial({ color: currentColorScheme.primary, emissive: currentColorScheme.secondary, specular: 0x111111, shininess: 50 });
+                threeCube = new THREE.Mesh(geometryCube, materialCube);
+                threeScene.add(threeCube);
+
+                // Basic Sphere
+                const geometrySphere = new THREE.SphereGeometry(0.7, 32, 32);
+                const materialSphere = new THREE.MeshPhongMaterial({ color: currentColorScheme.secondary, emissive: currentColorScheme.primary, specular: 0x111111, shininess: 50 });
+                threeSphere = new THREE.Mesh(geometrySphere, materialSphere);
+                threeSphere.position.x = 2;
+                threeScene.add(threeSphere);
+                
+                // Lighting
+                const ambientLight = new THREE.AmbientLight(0x404040, 2);
+                threeScene.add(ambientLight);
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+                directionalLight.position.set(1, 1, 1).normalize();
+                threeScene.add(directionalLight);
+
+                threeCamera.position.z = 5;
+                
+                const particleGeometry = new THREE.BufferGeometry();
+                const particleVertices = [];
+                const particleMaterial = new THREE.PointsMaterial({ 
+                    color: currentColorScheme.particle, 
+                    size: 0.1,
+                    transparent: true,
+                    opacity: 0.8,
+                    blending: THREE.AdditiveBlending 
+                });
+
+                for (let i = 0; i < 500; i++) {
+                    const x = (Math.random() - 0.5) * 10;
+                    const y = (Math.random() - 0.5) * 10;
+                    const z = (Math.random() - 0.5) * 10;
+                    particleVertices.push(x, y, z);
+                }
+                particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(particleVertices, 3));
+                threeParticles = new THREE.Points(particleGeometry, particleMaterial);
+                threeScene.add(threeParticles);
+
+                window.addEventListener('resize', onThreeResize, false);
+                onThreeResize(); 
+                return true; // Indicate success
+            } catch (error) {
+                showError("Failed to initialize 3D graphics (WebGL context error). 3D mode disabled.");
+                console.error("Error during Three.js initialization:", error);
+                isWebGLAvailable = false;
+                threeRenderer = null; // Ensure renderer is null if creation failed
+                btn3dShapes.classList.add('disabled');
+                btn3dShapes.disabled = true;
+                 if (currentVisMode === '3dshapes') {
+                    document.querySelector('.viz-mode-btn[data-mode="waveform"]').click();
+                }
+                return false; // Indicate failure
+            }
+        }
+
+        function onThreeResize() {
+            if (!threeCamera || !threeRenderer || !visualizerCanvas || !isWebGLAvailable) return;
+            const width = visualizerCanvas.clientWidth;
+            const height = visualizerCanvas.clientHeight;
+            
+            visualizerCanvas.width = width; 
+            visualizerCanvas.height = height;
+
+            threeCamera.aspect = width / height;
+            threeCamera.updateProjectionMatrix();
+            threeRenderer.setSize(width, height);
+        }
+
+
+        // --- Audio Handling ---
+        audioFile.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                showLoader(true);
+                if (audioPlayer.src && audioPlayer.src.startsWith('blob:')) { // Check if it's a blob URL
+                    URL.revokeObjectURL(audioPlayer.src); 
+                }
+                audioPlayer.src = URL.createObjectURL(file);
+                audioPlayer.load(); 
+
+                if (!audioCtx) { 
+                    initAudio();
+                }
+                
+                if (sourceNode) {
+                    sourceNode.disconnect();
+                }
+                // Ensure audioCtx and analyser are available before creating sourceNode
+                if (audioCtx && analyser) {
+                    sourceNode = audioCtx.createMediaElementSource(audioPlayer);
+                    sourceNode.connect(analyser);
+                    analyser.connect(audioCtx.destination); 
+                } else {
+                    showError("Audio context not ready. Cannot play audio.");
+                    showLoader(false);
+                    return;
+                }
+
+
+                audioPlayer.oncanplaythrough = () => {
+                    showLoader(false);
+                    audioPlayer.play();
+                };
+                audioPlayer.onerror = (err) => {
+                    showLoader(false);
+                    showError(`Error playing ${file.name}. Format might be unsupported or file is corrupted.`);
+                    console.error("Audio player error:", err);
+                }
+            }
+        });
+
+        audioPlayer.addEventListener('play', () => {
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume().catch(e => console.error("Error resuming AudioContext:", e));
+            }
+            playPauseButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg>`; // Pause icon
+            startVisualization();
+        });
+
+        audioPlayer.addEventListener('pause', () => {
+            playPauseButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" /></svg>`; // Play icon
+        });
+
+        audioPlayer.addEventListener('ended', () => {
+             playPauseButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" /></svg>`; // Play icon
+        });
+
+        playPauseButton.addEventListener('click', () => {
+            if (!audioPlayer.src || audioPlayer.src === window.location.href) { 
+                showError("Please select an audio file first.");
+                audioFile.click(); 
+                return;
+            }
+            if (audioCtx && audioCtx.state === 'suspended') { 
+                audioCtx.resume().catch(e => console.error("Error resuming AudioContext:", e));
+            }
+            if (audioPlayer.paused) {
+                audioPlayer.play().catch(e => {
+                    showError("Playback failed. Please try a different audio file or check browser console.");
+                    console.error("Error playing audio:", e);
+                });
+            } else {
+                audioPlayer.pause();
+            }
+        });
+
+        volumeControl.addEventListener('input', (e) => {
+            audioPlayer.volume = e.target.value;
+        });
+
+        seekBar.addEventListener('input', (e) => {
+            if(audioPlayer.duration && isFinite(audioPlayer.duration)) { // Check for valid duration
+                audioPlayer.currentTime = (e.target.value / 100) * audioPlayer.duration;
+            }
+        });
+
+        audioPlayer.addEventListener('timeupdate', () => {
+            if(audioPlayer.duration && isFinite(audioPlayer.duration)) {
+                seekBar.value = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+            }
+        });
+        
+        // --- Visualization Modes & Drawing ---
+        function startVisualization() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            
+            resizeCanvas(); 
+            if (currentVisMode === '3dshapes' && isWebGLAvailable && !threeRenderer) { 
+                if (!initThreeJS()) { // If init fails, it will handle fallback.
+                    return; // Don't proceed with draw if 3D init failed
+                }
+            } else if (currentVisMode === '3dshapes' && threeRenderer && isWebGLAvailable) {
+                onThreeResize(); 
+            }
+
+
+            function draw() {
+                // Stop drawing if 3D mode is selected but WebGL is not available/renderer failed
+                if (currentVisMode === '3dshapes' && (!isWebGLAvailable || !threeRenderer)) {
+                    // Clear canvas or show a message for 3D mode failure
+                    canvasCtx.fillStyle = currentColorScheme.background || '#0f0c29';
+                    canvasCtx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+                    canvasCtx.fillStyle = 'white';
+                    canvasCtx.textAlign = 'center';
+                    canvasCtx.fillText("3D Mode unavailable.", visualizerCanvas.width / 2, visualizerCanvas.height / 2);
+                    // No need to requestAnimationFrame if we are in a failed 3D state.
+                    // Or, switch to a default mode:
+                    // if (document.querySelector('.viz-mode-btn[data-mode="waveform"].active') === null) {
+                    //    document.querySelector('.viz-mode-btn[data-mode="waveform"]').click();
+                    // }
+                    animationFrameId = requestAnimationFrame(draw); // Keep drawing for other modes or if state changes
+                    return;
+                }
+
+
+                if (audioPlayer.paused && currentVisMode !== '3dshapes') { 
+                    if (currentVisMode !== '3dshapes') {
+                        animationFrameId = requestAnimationFrame(draw);
+                        return;
+                    }
+                }
+
+                if (analyser) { 
+                    analyser.getByteTimeDomainData(dataArray); 
+                    analyser.getByteFrequencyData(frequencyArray); 
+                } else {
+                    if (currentVisMode !== '3dshapes' || !isWebGLAvailable) {
+                        canvasCtx.fillStyle = currentColorScheme.background || '#0f0c29';
+                        canvasCtx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+                    } else if (threeRenderer && isWebGLAvailable) { // only render if webgl is fine
+                         threeRenderer.render(threeScene, threeCamera); 
+                    }
+                    animationFrameId = requestAnimationFrame(draw);
+                    return;
+                }
+
+
+                if (currentVisMode === '3dshapes' && threeRenderer && isWebGLAvailable) {
+                    draw3DShapes();
+                    threeRenderer.render(threeScene, threeCamera);
+                } else {
+                    canvasCtx.fillStyle = currentColorScheme.background || '#0f0c29';
+                    canvasCtx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+
+                    switch (currentVisMode) {
+                        case 'waveform':
+                            drawWaveform();
+                            break;
+                        case 'spectrum':
+                            drawSpectrum();
+                            break;
+                        case 'particles':
+                            drawParticles();
+                            break;
+                    }
+                }
+                animationFrameId = requestAnimationFrame(draw);
+            }
+            draw();
+        }
+
+        function drawWaveform() {
+            if (!dataArray) return;
+            canvasCtx.lineWidth = 2;
+            canvasCtx.strokeStyle = currentColorScheme.primary;
+            canvasCtx.beginPath();
+
+            const sliceWidth = visualizerCanvas.width * 1.0 / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0; 
+                const y = v * visualizerCanvas.height / 2;
+
+                if (i === 0) {
+                    canvasCtx.moveTo(x, y);
+                } else {
+                    canvasCtx.lineTo(x, y);
+                }
+                x += sliceWidth;
+            }
+            canvasCtx.lineTo(visualizerCanvas.width, visualizerCanvas.height / 2);
+            canvasCtx.stroke();
+        }
+
+        function drawSpectrum() {
+            if (!frequencyArray) return;
+            const barWidth = (visualizerCanvas.width / bufferLength) * 2.5;
+            let barHeight;
+            const centerX = visualizerCanvas.width / 2;
+            const centerY = visualizerCanvas.height / 2;
+            const radius = Math.min(centerX, centerY) * 0.8;
+            const numBars = bufferLength / 2; 
+
+            for (let i = 0; i < numBars; i++) {
+                barHeight = frequencyArray[i] * (radius / 255) * 1.5; 
+                
+                const angle = (i / numBars) * Math.PI * 2 - Math.PI / 2; 
+                
+                const hue = (i / numBars) * 360;
+                canvasCtx.fillStyle = `hsl(${hue}, 100%, ${50 + frequencyArray[i]/5}%)`;
+
+                const startX = centerX + Math.cos(angle) * (radius * 0.5);
+                const startY = centerY + Math.sin(angle) * (radius * 0.5);
+                const endX = centerX + Math.cos(angle) * (radius * 0.5 + barHeight);
+                const endY = centerY + Math.sin(angle) * (radius * 0.5 + barHeight);
+
+                canvasCtx.beginPath();
+                canvasCtx.lineWidth = Math.max(1, barWidth * 0.8); 
+                canvasCtx.strokeStyle = canvasCtx.fillStyle; 
+                canvasCtx.moveTo(startX, startY);
+                canvasCtx.lineTo(endX, endY);
+                canvasCtx.stroke();
+            }
+        }
+        
+        function initParticles() {
+            particles = [];
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                particles.push({
+                    x: Math.random() * visualizerCanvas.width,
+                    y: Math.random() * visualizerCanvas.height,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: (Math.random() - 0.5) * 2,
+                    radius: Math.random() * 3 + 1,
+                    originalRadius: Math.random() * 3 + 1,
+                    color: currentColorScheme.particle
+                });
+            }
+        }
+        if (particles.length === 0 && visualizerCanvas.width > 0) initParticles(); 
+
+        function drawParticles() {
+            if (!frequencyArray || !dataArray) return;
+            if ((particles.length === 0 && visualizerCanvas.width > 0) || (visualizerCanvas.width > 0 && particles[0]?.x > visualizerCanvas.width)) {
+                // Re-initialize if canvas was 0 or particles are way off screen (e.g. after resize from 0)
+                initParticles();
+            }
+            if (particles.length === 0) return; // Still no particles, skip drawing
+
+
+            const bassAvg = getFrequencyAverage(0, 5); 
+            const trebleAvg = getFrequencyAverage(Math.floor(bufferLength * 0.3), Math.floor(bufferLength * 0.6));
+
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+
+                if (p.x - p.radius < 0 || p.x + p.radius > visualizerCanvas.width) p.vx *= -1;
+                if (p.y - p.radius < 0 || p.y + p.radius > visualizerCanvas.height) p.vy *= -1;
+
+                p.radius = p.originalRadius + (bassAvg / 255) * 5 + (trebleAvg / 255) * 2;
+                const opacity = Math.min(1, 0.2 + bassAvg / 200 + trebleAvg / 255);
+
+                canvasCtx.beginPath();
+                canvasCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                canvasCtx.fillStyle = p.color;
+                canvasCtx.globalAlpha = opacity;
+                canvasCtx.fill();
+                canvasCtx.globalAlpha = 1.0; 
+            });
+        }
+
+        function draw3DShapes() {
+            if (!threeCube || !threeSphere || !analyser || !threeParticles || !dataArray || !frequencyArray) return;
+
+            const overallAmplitude = dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
+            const normalizedAmplitude = overallAmplitude / 128.0; 
+
+            const bass = getFrequencyAverage(0, 10); 
+            const mid = getFrequencyAverage(100, 300); 
+            const treble = getFrequencyAverage(400, Math.max(401, bufferLength -1)); // Ensure highIndex > lowIndex
+
+
+            threeCube.rotation.x += 0.005 + (bass / 255) * 0.02;
+            threeCube.rotation.y += 0.005 + (mid / 255) * 0.02;
+            const cubeScale = 0.5 + (normalizedAmplitude * 0.8);
+            threeCube.scale.set(cubeScale, cubeScale, cubeScale);
+            if (threeCube.material.emissive) threeCube.material.emissiveIntensity = bass / 255 * 0.8;
+
+            threeSphere.rotation.z += 0.003 + (treble / 255) * 0.03;
+            const sphereScale = 0.4 + (mid / 255) * 0.7;
+            threeSphere.scale.set(sphereScale, sphereScale, sphereScale);
+            if (threeSphere.material.emissive) threeSphere.material.emissiveIntensity = treble / 255 * 0.8;
+
+            const positions = threeParticles.geometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                const factor = 1 + Math.sin(Date.now() * 0.001 + i) * (normalizedAmplitude * 0.1);
+                positions[i+1] += Math.sin(Date.now() * 0.0005 + positions[i]) * (bass / 255) * 0.01;
+                if (positions[i+1] > 5) positions[i+1] = -5; 
+                else if (positions[i+1] < -5) positions[i+1] = 5;
+            }
+            threeParticles.geometry.attributes.position.needsUpdate = true;
+            threeParticles.rotation.y += 0.0005;
+        }
+
+        function getFrequencyAverage(lowIndex, highIndex) {
+            if (!frequencyArray || highIndex < lowIndex || lowIndex < 0 || highIndex >= frequencyArray.length) return 0;
+            let sum = 0;
+            for (let i = lowIndex; i <= highIndex; i++) {
+                sum += frequencyArray[i];
+            }
+            return sum / (highIndex - lowIndex + 1);
+        }
+
+        // --- UI Controls ---
+        document.querySelectorAll('.viz-mode-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                if (button.classList.contains('disabled')) return;
+
+                currentVisMode = button.dataset.mode;
+                document.querySelectorAll('.viz-mode-btn').forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                
+                if (currentVisMode === '3dshapes') {
+                    if (!isWebGLAvailable) {
+                        showError("3D Shapes mode is unavailable (WebGL not supported).");
+                        // Switch to a default mode if 3D is not available
+                        document.querySelector('.viz-mode-btn[data-mode="waveform"]').click(); // Fallback to waveform
+                        return;
+                    }
+                    visualizerCanvas.getContext('2d').clearRect(0,0,visualizerCanvas.width, visualizerCanvas.height); 
+                    if (!threeRenderer) {
+                        if (!initThreeJS()) return; // Stop if 3D init failed
+                    } else {
+                         onThreeResize(); 
+                    }
+                }
+                // If audio is playing or if the new mode is 3D (even if paused, to show static scene)
+                if ((audioPlayer.src && !audioPlayer.paused) || (currentVisMode === '3dshapes' && isWebGLAvailable && threeRenderer) ) {
+                     startVisualization();
+                } else if (currentVisMode !== '3dshapes') { // For 2D modes, clear canvas if paused
+                    canvasCtx.fillStyle = currentColorScheme.background || '#0f0c29';
+                    canvasCtx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+                }
+            });
+        });
+
+        document.querySelectorAll('.color-scheme-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                const schemeName = button.dataset.color;
+                currentColorScheme = { ...colorSchemes[schemeName], background: '#0f0c29' }; 
+                
+                document.querySelectorAll('.color-scheme-btn').forEach(btn => btn.classList.remove('border-white', 'ring-2', 'ring-white'));
+                button.classList.add('border-white', 'ring-2', 'ring-white');
+
+                if (threeCube && threeCube.material) {
+                    threeCube.material.color.set(currentColorScheme.primary);
+                    if (threeCube.material.emissive) threeCube.material.emissive.set(currentColorScheme.secondary);
+                }
+                if (threeSphere && threeSphere.material) {
+                    threeSphere.material.color.set(currentColorScheme.secondary);
+                    if (threeSphere.material.emissive) threeSphere.material.emissive.set(currentColorScheme.primary);
+                }
+                if (threeParticles && threeParticles.material) {
+                    threeParticles.material.color.set(currentColorScheme.particle);
+                }
+                if (particles.length > 0) { 
+                    particles.forEach(p => p.color = currentColorScheme.particle);
+                }
+            });
+        });
+
+        fullscreenButton.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                visualizerContainer.requestFullscreen().catch(err => {
+                    showError(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        });
+        document.addEventListener('fullscreenchange', () => {
+            resizeCanvas(); 
+            if (currentVisMode === '3dshapes' && threeRenderer && isWebGLAvailable) onThreeResize();
+        });
+
+
+        // --- Utility Functions ---
+        function resizeCanvas() {
+            const containerRect = visualizerContainer.getBoundingClientRect();
+            visualizerCanvas.width = containerRect.width;
+            visualizerCanvas.height = containerRect.height;
+            
+            if (particles.length > 0 && currentVisMode === 'particles' && visualizerCanvas.width > 0) { 
+                 // initParticles(); // Could re-init or just let them adjust
+            }
+            if (currentVisMode === '3dshapes' && threeRenderer && isWebGLAvailable) {
+                onThreeResize();
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        
+        function showLoader(show) {
+            loader.style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            messageBox.textContent = message;
+            messageBox.className = ''; // Remove all classes first
+            messageBox.classList.add('error-message'); // Add a generic error class if needed for styling
+            messageBox.style.backgroundColor = '#ef4444'; // Ensure red for error
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 5000);
+        }
+        function showSuccess(message) {
+            messageBox.textContent = message;
+            messageBox.className = ''; // Remove all classes first
+            messageBox.classList.add('success-message'); // Add a generic success class
+            messageBox.style.backgroundColor = '#22c55e'; // Ensure green for success
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 3000);
+        }
+
+        // --- Initial Setup Call ---
+        resizeCanvas(); 
+        document.querySelector('.viz-mode-btn[data-mode="waveform"]').classList.add('active');
+        
+        // Initial check for WebGL to disable button if necessary, without trying to init ThreeJS yet
+        if (!WEBGL.isWebGLAvailable()) {
+            isWebGLAvailable = false;
+            btn3dShapes.classList.add('disabled');
+            btn3dShapes.disabled = true;
+            console.warn("WebGL not detected on initial load. 3D Shapes mode will be disabled.");
+        }
+
+        if (currentVisMode !== '3dshapes' || !isWebGLAvailable) {
+            canvasCtx.fillStyle = currentColorScheme.background || '#0f0c29';
+            canvasCtx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+        } else if (isWebGLAvailable) {
+            // If 3D is default and WebGL is available, you might want to init it here.
+            // For now, it initializes lazily when the mode is selected.
+        }
+
+    </script>
+</body>
+</html>
